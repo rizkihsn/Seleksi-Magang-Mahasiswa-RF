@@ -17,4 +17,4 @@ Buka `index.html` di browser, atau deploy ke Vercel (Add New > Project > impor r
 
 ## Tautan
 - Video tutorial: (isi tautan YouTube)
-- Web simulasi: (isi tautan Vercel)
+- Web simulasi: https://seleksi-magang-mahasiswa-rf.vercel.app/ 
