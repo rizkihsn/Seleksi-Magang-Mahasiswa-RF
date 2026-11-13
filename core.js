@@ -108,7 +108,15 @@
       return node;
     }
 
-    const candidates = pickFeatures(attrs, m, rng);
+    // Mode manual: hanya fitur yang dipilih pengguna yang boleh diuji (yang belum terpakai di jalur ini)
+    const pool = opts.fixed ? attrs.filter(a => opts.fixed.indexOf(a) !== -1) : attrs;
+    if (pool.length === 0) {
+      node.leaf = true;
+      node.prediction = majority(rows, target);
+      node.reason = 'Semua fitur yang diizinkan sudah terpakai, dipilih kelas mayoritas';
+      return node;
+    }
+    const candidates = opts.fixed ? pool : pickFeatures(attrs, m, rng);
     const evals = candidates.map(a => evalAttribute(rows, a, target, classes));
     // pilih gain ratio tertinggi (seri -> gain tertinggi -> urutan nama)
     let best = evals[0];
@@ -161,11 +169,18 @@
     const classes = Array.from(new Set(data.map(r => r[target]))).sort();
     const trees = [];
     for (let t = 0; t < nTrees; t++) {
-      const bs = bootstrap(data, rng);
-      const tree = buildTree(bs.sample, attrs, target, classes, m, rng, { maxDepth: cfg.maxDepth }, '1', 0);
+      // cfg.manual[t] = { rowIds: [nomor data...], features: [atribut...] } atau kosong untuk mode otomatis
+      const mt = cfg.manual && cfg.manual[t];
+      let bs;
+      if (mt) {
+        const idx = mt.rowIds.map(id => data.findIndex(r => r.No === id));
+        bs = { idx, sample: idx.map(i => data[i]) };
+      } else bs = bootstrap(data, rng);
+      const tree = buildTree(bs.sample, attrs, target, classes, m, rng,
+        { maxDepth: cfg.maxDepth, fixed: mt ? mt.features : null }, '1', 0);
       const used = new Set(bs.idx);
       const oob = data.map((r, i) => i).filter(i => !used.has(i));
-      trees.push({ index: t + 1, bootstrapIdx: bs.idx, sample: bs.sample, oobIdx: oob, tree });
+      trees.push({ index: t + 1, bootstrapIdx: bs.idx, sample: bs.sample, oobIdx: oob, tree, manual: !!mt, features: mt ? mt.features : null });
     }
     return { trees, attrs, target, classes, m, seed: cfg.seed, nTrees };
   }

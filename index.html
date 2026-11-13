@@ -103,6 +103,28 @@
     </div>
     <div id="votes" class="votes"></div>
   </section>
+
+  <section id="guide" class="guide" aria-labelledby="g-h">
+    <div>
+      <h2 id="g-h">Cara membaca hasil</h2>
+      <p><b>Bootstrap.</b> Tiap pohon belajar dari 14 lamaran yang diambil acak dengan pengembalian. Nomor bertanda ×2 terambil dua kali. Nomor yang tidak terambil (out-of-bag) tidak ikut melatih pohon itu.</p>
+      <p><b>Gain Ratio.</b> Di tiap node, atribut dengan Gain Ratio terbesar menjadi pemisah. Batang di panel node membandingkan atribut yang diuji.</p>
+      <p><b>Daun.</b> Node berhenti bila semua data satu kelas, fitur habis, atau gain nol. Stempel di daun adalah keputusan cabang itu.</p>
+      <p><b>Mayoritas vote.</b> Putusan akhir adalah kelas yang dipilih paling banyak pohon. Jumlah pohon ganjil mencegah suara seri.</p>
+      <p><b>Akurasi out-of-bag.</b> Tiap data hanya diuji oleh pohon yang tidak pernah melihatnya. Angkanya kasar karena datanya sedikit.</p>
+      <p><b>Satu kelas saja.</b> Jika bootstrap hanya berisi satu kelas, pohonnya langsung menjadi satu daun tanpa percabangan.</p>
+    </div>
+    <div>
+      <h2>Coba eksperimen ini</h2>
+      <ol>
+        <li><b>Ganti seed</b> di langkah 2 dan lihat bootstrap serta bentuk pohon berubah, padahal datanya sama.</li>
+        <li><b>Ubah beberapa hasil seleksi</b> di langkah 1, lalu cek apakah atribut akar pohon ikut berganti.</li>
+        <li><b>Naikkan m dari 1 ke 4.</b> Pohon makin mirip satu sama lain. Pada m = 4, semua atribut diuji di setiap node.</li>
+        <li><b>Mode Manual satu kelas:</b> pilih Manual di Pohon 1, isi 14 Row ID dengan angka 1 semua, pilih 2 fitur, lalu Terapkan. Hasilnya satu daun bernama Ditolak.</li>
+        <li><b>Bandingkan 1 pohon dan 9 pohon</b> pada pelamar yang sama, lalu lihat apakah putusannya stabil.</li>
+      </ol>
+    </div>
+  </section>
 </main>
 
 <footer>

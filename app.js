@@ -13,7 +13,7 @@
   const num = (x, d) => x.toFixed(d == null ? 6 : d).replace('.', ',');
 
   let data = DATA.map(r => Object.assign({}, r));
-  const S = { forest: null, ti: 0, arr: [], k: 1, sel: 0, timer: null, vt: [], params: { n: 3, m: 2, seed: 7 }, newId: -1 };
+  const S = { forest: null, ti: 0, arr: [], k: 1, sel: 0, timer: null, vt: [], params: { n: 3, m: 2, seed: 7 }, newId: -1, modes: [] };
 
   /* ---------- Navigasi langkah ---------- */
   function goStep(n, focus) {
@@ -61,29 +61,74 @@
 
   /* ---------- Langkah 2: hutan ---------- */
   function rebuild() {
-    const p = S.params;
-    S.forest = RF.trainForest(data, ATTRS, TARGET, { nTrees: p.n, m: Math.min(p.m, ATTRS.length), seed: p.seed });
+    const p = S.params, m = Math.min(p.m, ATTRS.length);
+    while (S.modes.length < p.n) S.modes.push({ mode: 'auto', applied: false });
+    const manual = [];
+    for (let i = 0; i < p.n; i++) {
+      const md = S.modes[i];
+      if (md.applied && md.feats.length !== m) md.applied = false; // m berubah, fitur harus dipilih ulang
+      manual.push(md.mode === 'manual' && md.applied ? { rowIds: md.rowIds, features: md.feats } : null);
+    }
+    S.forest = RF.trainForest(data, ATTRS, TARGET, { nTrees: p.n, m, seed: p.seed, manual });
     S.ti = 0; S.vt.forEach(clearTimeout); S.vt = [];
     renderBoot();
     $('#verdict').innerHTML = '<p class="sm">Hutan berubah. Tekan Proses lamaran untuk melihat putusan terbaru.</p>';
     $('#votes').innerHTML = '';
     if (!$('#step-3').hidden) renderTree();
   }
+  function manualForm(t, md) {
+    const m = Math.min(S.params.m, ATTRS.length);
+    const ids = md.ids != null ? md.ids : t.bootstrapIdx.map(j => data[j].No).join(', ');
+    const feats = md.feats || (t.tree.candidates || []);
+    return '<div class="manual"><label>Row ID bootstrap (' + data.length + ' angka dari 1 sampai ' + data.length + ', boleh berulang)' +
+      '<input class="ids" type="text" inputmode="numeric" value="' + esc(ids) + '"></label>' +
+      '<fieldset><legend>Fitur yang diizinkan (pilih tepat ' + m + ')</legend>' + ATTRS.map(a =>
+        '<label class="chk"><input type="checkbox" value="' + a + '"' + (feats.indexOf(a) !== -1 ? ' checked' : '') + '> ' + NAMA[a] + '</label>').join('') + '</fieldset>' +
+      '<button type="button" class="go apply">Terapkan ke pohon ' + t.index + '</button> <span class="err" role="alert"></span>' +
+      (md.applied ? '<p class="sm">Pohon ini memakai Row ID dan fitur di atas. Pada tiap node, hanya fitur yang dipilih yang diuji.</p>'
+        : '<p class="sm">Belum diterapkan. Pohon ini masih memakai hasil otomatis. Isian di atas diambil dari hasil otomatis sebagai titik awal.</p>') + '</div>';
+  }
+  $('#boot').addEventListener('change', e => {
+    const r = e.target.closest('input[type=radio]'); if (!r) return;
+    const i = +r.closest('.bag').dataset.t, md = S.modes[i];
+    md.mode = r.value; md.applied = false;
+    if (r.value === 'auto') rebuild(); else renderBoot();
+  });
+  $('#boot').addEventListener('click', e => {
+    const b = e.target.closest('.apply'); if (!b) return;
+    const bag = b.closest('.bag'), i = +bag.dataset.t, md = S.modes[i], err = $('.err', bag);
+    const m = Math.min(S.params.m, ATTRS.length), raw = $('.ids', bag).value;
+    const ids = raw.split(/[\s,;]+/).filter(Boolean).map(Number);
+    const feats = $$('input[type=checkbox]:checked', bag).map(x => x.value);
+    const valid = new Set(data.map(r => r.No));
+    let msg = '';
+    if (ids.length !== data.length) msg = 'Butuh ' + data.length + ' Row ID, kamu mengisi ' + ids.length + '.';
+    else if (ids.some(x => !valid.has(x))) msg = 'Row ID harus berupa angka dari 1 sampai ' + data.length + '.';
+    else if (feats.length !== m) msg = 'Pilih tepat ' + m + ' fitur, sekarang terpilih ' + feats.length + '.';
+    if (msg) { err.textContent = msg; return; }
+    md.ids = ids.join(', '); md.rowIds = ids; md.feats = ATTRS.filter(a => feats.indexOf(a) !== -1); md.applied = true;
+    rebuild();
+  });
   function renderBoot() {
     const f = S.forest, oob = RF.oobAccuracy(f, data);
     let h = '';
     f.trees.forEach(t => {
       const cnt = {}; t.bootstrapIdx.forEach(i => { cnt[i] = (cnt[i] || 0) + 1; });
       const chip = (i, x, out) => '<span class="chip ' + cc(data[i][TARGET]) + (out ? ' out' : '') + '" title="' + lab(data[i][TARGET]) + '">Nomor ' + data[i].No + (x > 1 ? ' <em>×' + x + '</em>' : '') + '</span>';
-      h += '<div class="bag"><h4>Pohon ' + t.index + '</h4><div class="chips">' +
+      const md = S.modes[t.index - 1];
+      h += '<div class="bag" data-t="' + (t.index - 1) + '"><div class="bag-head"><h4>Pohon ' + t.index + (t.manual ? ' (manual)' : '') + '</h4>' +
+        '<div class="seg mode" role="radiogroup" aria-label="Mode pohon ' + t.index + '">' + ['auto', 'manual'].map(v =>
+          '<label><input type="radio" name="mode-' + t.index + '" value="' + v + '"' + (md.mode === v ? ' checked' : '') + '><span>' + (v === 'auto' ? 'Otomatis' : 'Manual') + '</span></label>').join('') +
+        '</div></div><div class="chips">' +
         Object.keys(cnt).map(Number).sort((a, b) => a - b).map(i => chip(i, cnt[i], false)).join('') + '</div>' +
-        '<p class="sm">Tidak terambil: ' + (t.oobIdx.length ? '</p><div class="chips">' + t.oobIdx.map(i => chip(i, 1, true)).join('') + '</div>' : 'tidak ada.</p>') + '</div>';
+        '<p class="sm">Tidak terambil: ' + (t.oobIdx.length ? '</p><div class="chips">' + t.oobIdx.map(i => chip(i, 1, true)).join('') + '</div>' : 'tidak ada.</p>') +
+        (md.mode === 'manual' ? manualForm(t, md) : '') + '</div>';
     });
     h += '<p class="sm">Akurasi out-of-bag hutan ini: ' + (oob.total ? oob.correct + ' dari ' + oob.total + ' (' + num(oob.accuracy * 100, 1) + '%)' : 'belum bisa dihitung') +
       '. Angkanya kasar karena datanya hanya ' + data.length + ' baris.</p>';
     $('#boot').innerHTML = h;
     $('#tree-tabs').innerHTML = f.trees.map((t, i) =>
-      '<button type="button" role="tab" aria-selected="' + (i === S.ti) + '" data-i="' + i + '">Pohon ' + t.index + '</button>').join('');
+      '<button type="button" role="tab" aria-selected="' + (i === S.ti) + '" data-i="' + i + '">Pohon ' + t.index + (t.manual ? ' (manual)' : '') + '</button>').join('');
   }
   function bindParam(id, key, outId) {
     $(id).addEventListener('input', e => {
@@ -168,7 +213,8 @@
     if (n.leaf) {
       h += '<p><span class="stamp ' + cc(n.prediction) + '">' + lab(n.prediction).toUpperCase() + '</span></p><p>' + esc(n.reason) + '. Cabang ini berhenti di sini.</p>';
     } else {
-      h += '<p>Atribut acak yang diuji (m = ' + S.forest.m + '): <b>' + n.candidates.join(' dan ') + '</b>. Yang Gain Ratio-nya terbesar menjadi pemisah.</p>';
+      h += '<p>' + (S.forest.trees[S.ti].manual ? 'Fitur yang diizinkan (mode manual): ' : 'Atribut acak yang diuji (m = ' + S.forest.m + '): ') +
+        '<b>' + n.candidates.join(' dan ') + '</b>. Yang Gain Ratio-nya terbesar menjadi pemisah.</p>';
       h += '<details class="calc"><summary>Hitung manual: entropy node</summary><p>Entropy = ' + termH(n.counts, n.n) + ' = <b>' + num(n.entropy) + '</b></p>' +
         '<p class="sm">Suku dengan pembilang 0 bernilai 0.</p></details>';
       const mx = Math.max.apply(null, n.evals.map(x => x.gainRatio).concat([1e-9]));
