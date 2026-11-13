@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hutan Seleksi</title>
+<meta name="description" content="Simulasi Random Forest untuk seleksi magang mahasiswa: bootstrap, gain ratio, pohon keputusan, dan mayoritas vote.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231B2B63'/%3E%3Cpath d='M16 7v9m0 0-6 6m6-6 6 6' stroke='%23fff' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='7' r='3' fill='%23F6DD6B'/%3E%3Ccircle cx='10' cy='23' r='2.6' fill='%23fff'/%3E%3Ccircle cx='22' cy='23' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <filter id="tinta" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="1.8"/>
+  </filter>
+</svg>
+<a class="skip" href="#main">Lewati ke konten</a>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="6" fill="#1B2B63"/><path d="M16 7v9m0 0-6 6m6-6 6 6" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="16" cy="7" r="3" fill="#F6DD6B"/><circle cx="10" cy="23" r="2.6" fill="#fff"/><circle cx="22" cy="23" r="2.6" fill="#fff"/></svg>
+    <span>Hutan Seleksi</span>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="Langkah simulasi">
+    <button type="button" data-step="1"><b>1</b> Pelamar</button>
+    <button type="button" data-step="2"><b>2</b> Hutan</button>
+    <button type="button" data-step="3"><b>3</b> Pohon</button>
+    <button type="button" data-step="4"><b>4</b> Putusan</button>
+  </nav>
+</header>
+
+<main id="main">
+  <!-- Langkah 1 -->
+  <section id="step-1" class="panel" data-step="1">
+    <div class="intro">
+      <h1 tabindex="-1">Seleksi magang oleh hutan keputusan</h1>
+      <p class="lead">Ada 14 pelamar magang. Ubah datanya, bangun beberapa pohon keputusan, lalu lihat setiap pohon memberi suara untuk pelamar baru.</p>
+    </div>
+    <h2>Data pelamar</h2>
+    <p class="sm">Klik sebuah nilai untuk mengubahnya. Hutan dibangun ulang otomatis.</p>
+    <div id="data-mix"></div>
+    <div class="scroll"><table id="data-table" class="data"></table></div>
+    <div class="actions">
+      <button type="button" id="btn-reset" class="ghost">Kembalikan data awal</button>
+      <button type="button" class="go" data-go="2">Atur hutan</button>
+    </div>
+  </section>
+
+  <!-- Langkah 2 -->
+  <section id="step-2" class="panel" data-step="2" hidden>
+    <h2 tabindex="-1">Atur hutan</h2>
+    <p class="lead">Setiap pohon belajar dari satu map berisi 14 lamaran yang diambil acak dengan pengembalian. Seed yang sama selalu menghasilkan hutan yang sama.</p>
+    <div class="controls">
+      <label>Jumlah pohon <output id="o-n">3</output>
+        <input id="in-n" type="range" min="1" max="9" value="3"></label>
+      <label>Atribut acak per node (m) <output id="o-m">2</output>
+        <input id="in-m" type="range" min="1" max="4" value="2"></label>
+      <label>Seed
+        <span class="seed"><input id="in-seed" type="number" value="7"><button type="button" id="btn-dice" class="ghost">Acak seed</button></span></label>
+    </div>
+    <h3>Map lamaran tiap pohon</h3>
+    <p class="sm">Nomor yang muncul lebih dari sekali diberi tanda ×. Nomor yang tidak terambil (out-of-bag) disimpan di bawahnya.</p>
+    <div id="boot"></div>
+    <div class="actions"><button type="button" class="go" data-go="3">Lihat pohon tumbuh</button></div>
+  </section>
+
+  <!-- Langkah 3 -->
+  <section id="step-3" class="panel" data-step="3" hidden>
+    <h2 tabindex="-1">Pohon tumbuh</h2>
+    <div id="tree-tabs" class="treetabs" role="tablist" aria-label="Pilih pohon"></div>
+    <div class="split">
+      <div class="left">
+        <div class="canvas" id="canvas"></div>
+        <div class="player">
+          <button type="button" id="btn-prev" class="ghost">Mundur</button>
+          <button type="button" id="btn-play" class="go">Putar</button>
+          <button type="button" id="btn-next" class="ghost">Maju</button>
+          <input id="rng" type="range" min="1" max="1" value="1" aria-label="Langkah pertumbuhan pohon">
+          <span id="cap" class="sm" aria-live="polite"></span>
+        </div>
+      </div>
+      <aside id="inspect" class="note" aria-live="polite"></aside>
+    </div>
+    <div class="actions"><button type="button" class="go" data-go="4">Uji pelamar baru</button></div>
+  </section>
+
+  <!-- Langkah 4 -->
+  <section id="step-4" class="panel" data-step="4" hidden>
+    <h2 tabindex="-1">Putusan hutan</h2>
+    <div class="split4">
+      <form id="form" class="applicant" autocomplete="off">
+        <h3>Formulir pelamar baru</h3>
+        <div id="fields"></div>
+        <button type="submit" class="go">Proses lamaran</button>
+      </form>
+      <div id="verdict" class="verdict" aria-live="polite">
+        <p class="sm">Isi formulir lalu tekan Proses lamaran. Setiap pohon akan memberi stempel.</p>
+      </div>
+    </div>
+    <div id="votes" class="votes"></div>
+  </section>
+</main>
+
+<footer>
+  Tugas Machine Learning. Rizki Hasan Fauzi, NIM 301240071, Teknik Informatika, UNIBBA.
+</footer>
+
+<script src="core.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
